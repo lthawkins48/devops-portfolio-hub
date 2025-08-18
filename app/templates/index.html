@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ config.title }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>{{ config.title }}</h1>
+    <p>Deployed on AWS EC2 via Terraform. Containerized with Docker.</p>
+  </header>
+
+  <section>
+    <h2>Quick Links</h2>
+    <ul class="links">
+      <li><a href="{{ config.github }}" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a href="{{ config.dockerhub }}" target="_blank" rel="noopener">Docker Hub</a></li>
+      <li><a href="{{ config.linkedin }}" target="_blank" rel="noopener">LinkedIn</a></li>
+    </ul>
+    <p class="hint">Update these via env vars: <code>PORTFOLIO_GITHUB</code>, <code>PORTFOLIO_DOCKERHUB</code>, <code>PORTFOLIO_LINKEDIN</code>.</p>
+  </section>
+
+  <section>
+    <h2>Architecture Diagram</h2>
+    <p>Place your diagram image at <code>app/static/diagram.png</code>.</p>
+    <img src="{{ url_for('static', filename='diagram.png') }}" alt="Architecture diagram"
+         onerror="this.outerHTML='<div class=\'placeholder\'>diagram.png not found — add it to app/static/</div>';">
+  </section>
+
+  <footer>
+    <small>© {{ config.title }}</small>
+  </footer>
+</body>
+</html>
