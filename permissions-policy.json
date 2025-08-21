@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowSendCommandToTaggedInstances",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation"
+      ],
+      "Resource": [
+        "arn:aws:ssm:<us-east-1>:<205930633930>:document/AWS-RunShellScript",
+        "arn:aws:ec2:<us-east-1>:<205930633930>:instance/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "ssm:resourceTag/Project": "DevOpsPortfolio"
+        }
+      }
+    },
+    {
+      "Sid": "DescribeForDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeTags"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+

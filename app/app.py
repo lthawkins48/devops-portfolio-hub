@@ -8,7 +8,7 @@ def home():
     config = {
         "github":   os.getenv("PORTFOLIO_GITHUB",   "https://github.com/lthawkins48"),
         "dockerhub":os.getenv("PORTFOLIO_DOCKERHUB","https://hub.docker.com/u/lthawkins48"),
-        "linkedin": os.getenv("PORTFOLIO_LINKEDIN", "https://www.linkedin.com/in/YOUR-LINKEDIN/"),
+        "linkedin": os.getenv("PORTFOLIO_LINKEDIN", "https://www.linkedin.com/in/hawk-hawkins-401976193/"),
         "title":    os.getenv("PORTFOLIO_TITLE",    "DevOps Portfolio Hub")
     }
     return render_template("index.html", config=config)

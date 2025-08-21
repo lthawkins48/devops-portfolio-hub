@@ -1,45 +1,96 @@
 terraform {
-  required_version = ">= 1.3.0"
-
+  required_version = ">= 1.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0"
-    }
   }
 }
 
 provider "aws" {
-  region = var.region
+  region = "us-east-1"
 }
 
-variable "region" {
-  type    = string
-  default = "us-east-1"
+# GitHub OIDC Provider
+resource "aws_iam_openid_connect_provider" "github" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
 
-# Generate a fresh SSH keypair every run
-resource "tls_private_key" "portfolio_key" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
+# IAM Role for GitHub Actions
+resource "aws_iam_role" "github_oidc_role" {
+  name = "github-actions-oidc-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:lthawkins48/devops-portfolio-hub:*"
+          }
+        }
+      }
+    ]
+  })
 }
 
-resource "aws_key_pair" "portfolio" {
-  key_name   = "devops-portfolio-key-${timestamp()}"
-  public_key = tls_private_key.portfolio_key.public_key_openssh
+# Attach Permissions Policy
+resource "aws_iam_role_policy" "github_oidc_policy" {
+  name = "github-actions-oidc-policy"
+  role = aws_iam_role.github_oidc_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:CompleteLayerUpload",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:InitiateLayerUpload",
+          "ecr:PutImage",
+          "ecr:UploadLayerPart"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:CreateTags",
+          "ec2:RunInstances",
+          "ec2:TerminateInstances",
+          "ec2:StartInstances",
+          "ec2:StopInstances"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
+# Security Group
 resource "aws_security_group" "portfolio_sg" {
-  name        = "portfolio-sg-${timestamp()}"
-  description = "Allow SSH and HTTP traffic"
+  name        = "portfolio-sg-${replace(timestamp(), ":", "-")}"
+  description = "Allow HTTP and SSH"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -47,7 +98,6 @@ resource "aws_security_group" "portfolio_sg" {
   }
 
   ingress {
-    description = "Flask App"
     from_port   = 5000
     to_port     = 5000
     protocol    = "tcp"
@@ -62,36 +112,42 @@ resource "aws_security_group" "portfolio_sg" {
   }
 }
 
-data "aws_vpc" "default" {
-  default = true
-}
-
+# Launch EC2 Instance with latest Docker image
 resource "aws_instance" "portfolio" {
-  ami                         = "ami-08c40ec9ead489470" # Ubuntu 22.04 in us-east-1
-  instance_type               = "t2.micro"
-  key_name                    = aws_key_pair.portfolio.key_name
-  vpc_security_group_ids      = [aws_security_group.portfolio_sg.id]
-
-  tags = {
-    Name = "devops-portfolio-instance"
-  }
+  ami           = "ami-08c40ec9ead489470" # Ubuntu 22.04
+  instance_type = "t2.micro"
+  security_groups = [aws_security_group.portfolio_sg.name]
 
   user_data = <<-EOF
               #!/bin/bash
               apt-get update -y
               apt-get install -y docker.io
-              systemctl start docker
               systemctl enable docker
-              docker run -d -p 5000:5000 lthawkins48/devops-portfolio:latest
+              systemctl start docker
+              docker run -d -p 5000:5000 ${data.aws_ecr_repository.portfolio.repository_url}:latest
               EOF
+
+  tags = {
+    Name = "DevOpsPortfolio"
+  }
 }
 
+# Data source for default VPC
+data "aws_vpc" "default" {
+  default = true
+}
+
+# ECR Repository
+resource "aws_ecr_repository" "portfolio" {
+  name = "devops-portfolio"
+}
+
+data "aws_ecr_repository" "portfolio" {
+  name = aws_ecr_repository.portfolio.name
+}
+
+# Outputs
 output "portfolio_public_ip" {
   value = aws_instance.portfolio.public_ip
-}
-
-output "portfolio_key_pem" {
-  value     = tls_private_key.portfolio_key.private_key_pem
-  sensitive = true
 }
 
